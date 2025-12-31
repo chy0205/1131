@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聖訓小卡生成器 - 原圖格式精準版</title>
+
+<!-- 載入 html-to-image 庫 -->
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.12/dist/html-to-image.min.js"></script>
+
+<style>
+/* ---------------------------------------------------- */
+/* ★ 全域樣式設定 ★                                     */
+/* ---------------------------------------------------- */
+body {
+    font-family: "標楷體", "DFKai-SB", "KaiTi", serif;
+    background-color: #eef2f3;
+    margin: 0; padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+}
+.main-container {
+    width: 95%; max-width: 1100px;
+    display: flex;
+    gap: 25px;
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+/* 左側編輯區 */
+.editor-side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+label { font-size: 0.9rem; font-weight: bold; color: #34495e; }
+input, textarea {
+    padding: 10px;
+    font-size: 1rem;
+    border: 1px solid #ccd1d1;
+    border-radius: 5px;
+    font-family: inherit;
+}
+textarea { resize: vertical; min-height: 120px; }
+
+/* 右側預覽區 */
+.preview-side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #d5dbdb;
+    padding: 20px;
+    border-radius: 8px;
+    position: sticky;
+    top: 20px;
+}
+
+/* ---------------------------------------------------- */
+/* ★ 聖訓小卡實體樣式 (720x1280) ★                        */
+/* ---------------------------------------------------- */
+#cardCanvas {
+    width: 720px;
+    height: 1280px;
+    position: relative;
+    background-color: #fff;
+    overflow: hidden;
+    /* 預覽時縮放 */
+    transform: scale(0.45);
+    transform-origin: top center;
+}
+
+/* 底圖層 */
+.result-bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 1;
+}
+
+/* 文字共用樣式 - 針對原圖進行「極粗化」 */
+.content-block {
+    position: absolute;
+    z-index: 2;
+    height: 1220px; 
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    font-family: "標楷體", "DFKai-SB", "KaiTi", serif;
+    font-weight: 900; 
+    /* 模擬原圖的超厚重字體感 */
+    text-shadow: 0.5px 0.5px 0px #222, -0.5px -0.5px 0px #222, 0.5px -0.5px 0px #222, -0.5px 0.5px 0px #222;
+    line-height: 1.5;
+    letter-spacing: 16px; /* 增加字距以符合原圖 */
+    white-space: pre;
+    color: #222;
+}
+
+/* 右側抬頭樣式：靠下對齊 */
+.header-block {
+    top: 30px;
+    right: 45px; 
+    width: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; 
+    font-size: 26px;
+    letter-spacing: 12px;
+}
+
+.header-date {
+    margin-bottom: 50px; /* 日期與抬頭的間距 */
+}
+
+/* 本文層樣式 */
+.main-content-block {
+    top: 30px; 
+    right: 170px;
+    width: 520px;
+    font-size: 34px; 
+}
+
+/* 區域小字樣式 */
+.small-tag {
+    font-size: 20px;
+    letter-spacing: 3px;
+    font-weight: bold;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* 操作按鈕 */
+.btn-save {
+    background-color: #16a085;
+    color: white;
+    padding: 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: bold;
+    transition: 0.2s;
+    margin-top: 10px;
+}
+.btn-save:hover { background-color: #1abc9c; }
+
+@media (max-width: 900px) {
+    .main-container { flex-direction: column; }
+    #cardCanvas { transform: scale(0.4); }
+}
+</style>
+</head>
+<body>
+
+<div class="main-container">
+    <div class="editor-side">
+        <h2 style="margin-top:0;">聖訓小卡編輯器</h2>
+        
+        <div class="input-group">
+            <label>日期 (例如：二零二四年臘月)</label>
+            <input type="text" id="inDate" placeholder="輸入日期" oninput="draw()">
+        </div>
+
+        <div class="input-group">
+            <label>仙佛聖號 (例如：濟公活佛)</label>
+            <input type="text" id="inGod" placeholder="輸入仙佛名稱" oninput="draw()">
+        </div>
+
+        <div class="input-group">
+            <label>班期名稱 (例如：中和區學員班)</label>
+            <input type="text" id="inClass" placeholder="輸入班期名稱" oninput="draw()">
+        </div>
+
+        <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+
+        <div class="input-group">
+            <label>姓名</label>
+            <input type="text" id="inName" placeholder="例如：承華" oninput="draw()">
+        </div>
+
+        <div class="input-group">
+            <label>區域 (例如：中和81區)</label>
+            <input type="text" id="inArea" placeholder="輸入區域" oninput="draw()">
+        </div>
+
+        <div class="input-group">
+            <label>聖訓內文 (可直接換行)</label>
+            <textarea id="inContent" placeholder="輸入聖訓..." oninput="draw()"></textarea>
+        </div>
+
+        <div class="input-group">
+            <label>內文字級大小 (建議 34-36)</label>
+            <input type="number" id="inFS" value="34" min="20" max="45" oninput="draw()">
+        </div>
+
+        <button class="btn-save" onclick="save()">下載高解析圖檔</button>
+        <p id="status" style="font-size:12px; color:#7f8c8d;"></p>
+    </div>
+
+    <div class="preview-side">
+        <div id="cardCanvas">
+            <!-- 底圖 (維持實體標籤以穩定輸出) -->
+            <img class="result-bg-img" id="bgImg" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" crossorigin="anonymous">
+            
+            <div id="headerLayer" class="content-block header-block"></div>
+            <div id="contentLayer" class="content-block main-content-block"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * ★ 排版邏輯 ★
+ */
+function draw() {
+    const date = document.getElementById('inDate').value;
+    const god = document.getElementById('inGod').value;
+    const cls = document.getElementById('inClass').value;
+    const name = document.getElementById('inName').value;
+    const area = document.getElementById('inArea').value;
+    const content = document.getElementById('inContent').value;
+    const fontSize = parseInt(document.getElementById('inFS').value) || 34;
+
+    // 組合抬頭文字
+    let titleText = "";
+    if (god && cls) {
+        titleText = `${god}慈愛於${cls}`; // 原圖看起來像是「慈愛」或「慈悲」，依原圖文字修改
+    } else if (god || cls) {
+        titleText = god + cls;
+    }
+
+    // 1. 更新抬頭
+    const header = document.getElementById('headerLayer');
+    header.innerHTML = `
+        <div class="header-date">${date}</div>
+        <div>${titleText}</div>
+    `;
+
+    // 2. 更新正文
+    const contentBox = document.getElementById('contentLayer');
+    contentBox.style.fontSize = fontSize + 'px';
+
+    // 姓名上方預留空間 (原圖比例)
+    const nameTopGap = "　".repeat(4); 
+    const namePart = name ? (nameTopGap + name + "｜") : "";
+    const indent = "　".repeat(namePart.length); 
+
+    const charH = fontSize + 16; // 字高 + 字距
+    const maxChars = Math.floor(1200 / charH);
+
+    let processedHtml = "";
+    const sourceLines = content.split('\n');
+
+    sourceLines.forEach((line, idx) => {
+        if (idx === 0) {
+            let firstLineFull = namePart + line;
+            if (firstLineFull.length > maxChars) {
+                processedHtml += firstLineFull.substring(0, maxChars);
+                let remain = firstLineFull.substring(maxChars);
+                while(remain.length > 0) {
+                    const rowMax = maxChars - indent.length;
+                    processedHtml += "\n" + indent + remain.substring(0, rowMax);
+                    remain = remain.substring(rowMax);
+                }
+            } else {
+                processedHtml += firstLineFull;
+            }
+        } else {
+            let remain = line;
+            while(remain.length > 0) {
+                const rowMax = maxChars - indent.length;
+                processedHtml += "\n" + indent + remain.substring(0, rowMax);
+                remain = remain.substring(rowMax);
+            }
+        }
+    });
+
+    // 3. 處理區域標籤
+    if (area) {
+        const areaHtml = `<span class="small-tag">（${area}）</span>`;
+        const lastLineLength = processedHtml.split('\n').pop().length;
+        if (lastLineLength + area.length + 3 <= maxChars) {
+            processedHtml += areaHtml;
+        } else {
+            processedHtml += "\n" + indent + areaHtml;
+        }
+    }
+
+    contentBox.innerHTML = processedHtml;
+}
+
+async function save() {
+    const node = document.getElementById('cardCanvas');
+    const status = document.getElementById('status');
+    status.textContent = "正在製作高品質圖檔...";
+    
+    try {
+        const dataUrl = await htmlToImage.toPng(node, {
+            quality: 1,
+            pixelRatio: 3, 
+            style: { transform: 'scale(1)' }
+        });
+        const link = document.createElement('a');
+        link.download = `聖訓-${document.getElementById('inName').value || '生成'}.png`;
+        link.href = dataUrl;
+        link.click();
+        status.textContent = "下載完成！";
+    } catch (error) {
+        console.error(error);
+        status.textContent = "失敗，請重試。";
+    }
+}
+
+draw();
+</script>
+
+</body>
+</html>
